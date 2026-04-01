@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
+import { ArrowLeftRight } from 'lucide-react';
 import { Team, Process, Task, UserTaskLevel, Criterion, TrainingAction } from '../types';
 import Modal from '../components/Modal';
 
@@ -22,6 +23,7 @@ export default function Matrix() {
   const [selectedProcessId, setSelectedProcessId] = useState<string>(() => localStorage.getItem('matrix_selectedProcessId') || '');
   const [showTargets, setShowTargets] = useState<boolean>(() => localStorage.getItem('matrix_showTargets') === 'true');
   const [isSelfAssessment, setIsSelfAssessment] = useState<boolean>(() => localStorage.getItem('matrix_isSelfAssessment') === 'true');
+  const [isPivoted, setIsPivoted] = useState<boolean>(() => localStorage.getItem('matrix_isPivoted') === 'true');
   const [loading, setLoading] = useState(true);
 
   const [selectedCell, setSelectedCell] = useState<{ userId: string, userName: string, task: Task } | null>(null);
@@ -53,6 +55,10 @@ export default function Matrix() {
   useEffect(() => {
     localStorage.setItem('matrix_isSelfAssessment', String(isSelfAssessment));
   }, [isSelfAssessment]);
+
+  useEffect(() => {
+    localStorage.setItem('matrix_isPivoted', String(isPivoted));
+  }, [isPivoted]);
 
   const isCurrentUser = (uid: string) => {
     if (!dbUser) return false;
@@ -539,11 +545,27 @@ export default function Matrix() {
             <div className="ml-3 text-sm font-medium text-gray-700">Autoevaluación</div>
           </label>
         </div>
+
+        <div className="flex items-center h-[42px]">
+          <label className="flex items-center cursor-pointer">
+            <div className="relative">
+              <input 
+                type="checkbox" 
+                className="sr-only" 
+                checked={isPivoted}
+                onChange={(e) => setIsPivoted(e.target.checked)}
+              />
+              <div className={`block w-12 h-7 rounded-full transition-colors ${isPivoted ? 'bg-indigo-600' : 'bg-gray-300'}`}></div>
+              <div className={`dot absolute left-1 top-1 bg-white w-5 h-5 rounded-full transition-transform ${isPivoted ? 'transform translate-x-5' : ''}`}></div>
+            </div>
+            <div className="ml-3 text-sm font-medium text-gray-700">Pivotar ejes</div>
+          </label>
+        </div>
       </div>
 
       {selectedTeam && selectedProcess ? (
         <div className="space-y-6">
-          {showTargets && (
+          {showTargets && !isPivoted && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b">
@@ -650,7 +672,9 @@ export default function Matrix() {
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
             <table className="w-full text-sm text-left">
-            <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b">
+              {!isPivoted ? (
+                <>
+                  <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b">
               <tr>
                 <th className="px-6 py-4 border-r sticky left-0 bg-gray-50 z-10 w-48">Usuarios</th>
                 {filteredTasks.map(task => (
@@ -707,9 +731,84 @@ export default function Matrix() {
                     </td>
                   ))}
                 </tr>
-              )})}
-            </tbody>
-          </table>
+                )})}
+              </tbody>
+            </>
+          ) : (
+            <>
+              <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b">
+                <tr>
+                  <th className="px-6 py-4 border-r sticky left-0 bg-gray-50 z-10 w-48">Tareas</th>
+                  {showTargets && (
+                    <th className="px-4 py-4 text-center min-w-[80px] border-r bg-yellow-50/50">
+                      Objetivo
+                    </th>
+                  )}
+                  {selectedTeam.members.map(member => {
+                    const userObj = users.find(u => u.uid === member.uid);
+                    const photoURL = userObj?.photoURL || (member as any).photoURL;
+                    return (
+                      <th key={member.uid} className="px-4 py-4 text-center min-w-[120px]">
+                        <div className="flex flex-col items-center space-y-1">
+                          {photoURL ? (
+                            <img 
+                              src={photoURL} 
+                              alt={member.name} 
+                              className="w-8 h-8 rounded-full object-cover border border-gray-200 mb-1"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs border border-blue-200 mb-1">
+                              {member.name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <span className="text-gray-900 truncate max-w-[100px]">{member.name}</span>
+                        </div>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTasks.map(task => (
+                  <tr key={task.id} className="border-b hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 font-medium text-gray-900 border-r sticky left-0 z-10 bg-white">
+                      <div 
+                        className="flex flex-col space-y-1 cursor-pointer hover:text-blue-600"
+                        onClick={() => setSelectedTaskDoc(task)}
+                      >
+                        <div className="flex items-center gap-1">
+                          <span className="truncate max-w-[140px]">{task.name}</span>
+                          {task.attachments && task.attachments.length > 0 && (
+                            <svg className="w-3 h-3 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                            </svg>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    {showTargets && (
+                      <td className="px-4 py-4 text-center border-r bg-yellow-50/30 font-bold text-yellow-700">
+                        {(() => {
+                          const teamTarget = teamTargets.find(t => t.id === `${selectedTeamId}_${selectedProcessId}_${task.id}`);
+                          const counts = teamTarget?.targetCounts || {};
+                          return Object.values(counts).reduce((acc, val) => (acc as number) + (val as number), 0) as number;
+                        })()}
+                      </td>
+                    )}
+                    {selectedTeam.members.map(member => (
+                      <td key={member.uid} className="px-4 py-3 text-center">
+                        <div className="flex justify-center">
+                          {renderCell(member.uid, task.id, member.name)}
+                        </div>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </>
+          )}
+        </table>
         </div>
 
         {/* Leyenda */}
