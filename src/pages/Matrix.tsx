@@ -165,6 +165,7 @@ export default function Matrix() {
   }, [dbUser, isAdmin, isSupervisor, teams, user?.email, activeCompanyId, isGlobalAdmin]);
 
   const selectedTeam = teams.find(t => t.id === selectedTeamId);
+  const sortedMembers = [...(selectedTeam?.members || [])].sort((a, b) => a.name.localeCompare(b.name));
   const isTeamSupervisor = isCurrentUser(selectedTeam?.supervisorId || '');
   const selectedProcess = processes.find(p => p.id === selectedProcessId);
   const filteredTasks = tasks.filter(t => t.processId === selectedProcessId);
@@ -696,7 +697,7 @@ export default function Matrix() {
               </tr>
             </thead>
             <tbody>
-              {selectedTeam.members.map(member => {
+              {sortedMembers.map(member => {
                 // Try to get the latest photoURL from the users array if available (for admins/supervisors),
                 // otherwise fallback to the denormalized photoURL in the member object.
                 const userObj = users.find(u => u.uid === member.uid);
@@ -744,7 +745,7 @@ export default function Matrix() {
                       Objetivo
                     </th>
                   )}
-                  {selectedTeam.members.map(member => {
+                  {sortedMembers.map(member => {
                     const userObj = users.find(u => u.uid === member.uid);
                     const photoURL = userObj?.photoURL || (member as any).photoURL;
                     return (
@@ -796,7 +797,7 @@ export default function Matrix() {
                         })()}
                       </td>
                     )}
-                    {selectedTeam.members.map(member => (
+                    {sortedMembers.map(member => (
                       <td key={member.uid} className="px-4 py-3 text-center">
                         <div className="flex justify-center">
                           {renderCell(member.uid, task.id, member.name)}

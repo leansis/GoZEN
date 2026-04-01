@@ -195,16 +195,19 @@ export default function Teams() {
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-blue-500 focus:ring-blue-500"
               >
                 <option value="">Seleccionar supervisor...</option>
-                {users.filter(u => u.role === 'supervisor' || u.role === 'admin' || u.role === 'lean_promotor').map(u => (
-                  <option key={u.uid} value={u.uid}>{u.name}</option>
-                ))}
+                {users
+                  .filter(u => u.role === 'supervisor' || u.role === 'admin' || u.role === 'lean_promotor')
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map(u => (
+                    <option key={u.uid} value={u.uid}>{u.name}</option>
+                  ))}
               </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Miembros</label>
               <div className="max-h-40 overflow-y-auto border rounded-md p-2 space-y-1">
-                {users.map(u => (
+                {[...users].sort((a, b) => a.name.localeCompare(b.name)).map(u => (
                   <label key={u.uid} className="flex items-center space-x-2">
                     <input
                       type="checkbox"
