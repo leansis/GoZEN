@@ -1,0 +1,190 @@
+{
+  "entities": {
+    "Company": {
+      "title": "Company",
+      "description": "A company in the multi-tenant system",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "createdAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "A user of the application",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "supervisor", "user", "lean_promotor"] },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "companyId": { "type": "string" }
+      },
+      "required": ["uid", "name", "email", "role", "status"]
+    },
+    "Team": {
+      "title": "Team",
+      "description": "A team of users",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "supervisorId": { "type": "string" },
+        "memberIds": { "type": "array", "items": { "type": "string" } },
+        "processIds": { "type": "array", "items": { "type": "string" } },
+        "parentTeamId": { "type": "string" },
+        "companyId": { "type": "string" }
+      },
+      "required": ["name", "supervisorId", "memberIds", "processIds", "companyId"]
+    },
+    "Process": {
+      "title": "Process",
+      "description": "A process containing tasks",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "companyId": { "type": "string" }
+      },
+      "required": ["name", "description", "companyId"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "A task within a process",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "processId": { "type": "string" },
+        "criteriaId": { "type": "string" },
+        "attachments": { "type": "array", "items": { "type": "string" } },
+        "companyId": { "type": "string" }
+      },
+      "required": ["name", "processId", "criteriaId", "attachments", "companyId"]
+    },
+    "Criterion": {
+      "title": "Criterion",
+      "description": "Criteria for evaluating a task",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "levels": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "level": { "type": "number" },
+              "description": { "type": "string" },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "description": { "type": "string" }
+                  },
+                  "required": ["id", "description"]
+                }
+              }
+            },
+            "required": ["level", "description", "items"]
+          }
+        },
+        "companyId": { "type": "string" }
+      },
+      "required": ["name", "levels", "companyId"]
+    },
+    "UserTaskLevel": {
+      "title": "UserTaskLevel",
+      "description": "A user's level for a specific task",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "taskId": { "type": "string" },
+        "currentLevel": { "type": "number" },
+        "targetLevel": { "type": "number" },
+        "plannedLevel": { "type": "number" },
+        "completedItems": { "type": "array", "items": { "type": "string" } },
+        "selfLevel": { "type": "number" },
+        "selfCompletedItems": { "type": "array", "items": { "type": "string" } },
+        "companyId": { "type": "string" }
+      },
+      "required": ["userId", "taskId", "currentLevel", "targetLevel", "plannedLevel", "completedItems", "companyId"]
+    },
+    "TrainingAction": {
+      "title": "TrainingAction",
+      "description": "A training action for a user to reach a target level",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "taskId": { "type": "string" },
+        "targetLevel": { "type": "number" },
+        "trainerId": { "type": "string" },
+        "plannedDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["planificada", "retrasada", "completada", "verificada"] },
+        "verifierId": { "type": "string" },
+        "verifierName": { "type": "string" },
+        "verificationDate": { "type": "string" },
+        "description": { "type": "string" },
+        "companyId": { "type": "string" }
+      },
+      "required": ["userId", "taskId", "targetLevel", "trainerId", "plannedDate", "status", "companyId"]
+    },
+    "TeamTarget": {
+      "title": "TeamTarget",
+      "description": "Target number of people per level for a task in a team",
+      "type": "object",
+      "properties": {
+        "teamId": { "type": "string" },
+        "processId": { "type": "string" },
+        "taskId": { "type": "string" },
+        "targetCounts": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "companyId": { "type": "string" }
+      },
+      "required": ["teamId", "processId", "taskId", "targetCounts", "companyId"]
+    }
+  },
+  "firestore": {
+    "/companies/{companyId}": {
+      "schema": { "$ref": "#/entities/Company" },
+      "description": "Companies"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    },
+    "/teams/{teamId}": {
+      "schema": { "$ref": "#/entities/Team" },
+      "description": "Teams"
+    },
+    "/processes/{processId}": {
+      "schema": { "$ref": "#/entities/Process" },
+      "description": "Processes"
+    },
+    "/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/Task" },
+      "description": "Tasks"
+    },
+    "/criteria/{criterionId}": {
+      "schema": { "$ref": "#/entities/Criterion" },
+      "description": "Criteria"
+    },
+    "/userTaskLevels/{userTaskLevelId}": {
+      "schema": { "$ref": "#/entities/UserTaskLevel" },
+      "description": "User task levels"
+    },
+    "/trainingActions/{trainingActionId}": {
+      "schema": { "$ref": "#/entities/TrainingAction" },
+      "description": "Training actions"
+    },
+    "/teamTargets/{teamTargetId}": {
+      "schema": { "$ref": "#/entities/TeamTarget" },
+      "description": "Team targets for tasks"
+    }
+  }
+}

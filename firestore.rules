@@ -1,0 +1,368 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required)
+    //   - name: string (required)
+    //   - email: string (required)
+    //   - role: string (required, 'admin'|'supervisor'|'user')
+    //   - status: string (required, 'active'|'inactive')
+    //
+    // Collection: teams
+    // Document ID: {teamId}
+    // Fields:
+    //   - name: string (required)
+    //   - supervisorId: string (required)
+    //   - members: list of maps {uid: string, name: string} (required)
+    //   - processIds: list of strings (required)
+    //   - parentTeamId: string (optional)
+    //
+    // Collection: processes
+    // Document ID: {processId}
+    // Fields:
+    //   - name: string (required)
+    //   - description: string (required)
+    //
+    // Collection: tasks
+    // Document ID: {taskId}
+    // Fields:
+    //   - name: string (required)
+    //   - processId: string (required)
+    //   - criteriaId: string (required)
+    //   - attachments: list of strings (required)
+    //
+    // Collection: criteria
+    // Document ID: {criterionId}
+    // Fields:
+    //   - name: string (required)
+    //   - levels: list of maps (required)
+    //
+    // Collection: userTaskLevels
+    // Document ID: {userId}_{taskId}
+    // Fields:
+    //   - userId: string (required)
+    //   - userName: string (required)
+    //   - taskId: string (required)
+    //   - currentLevel: number (required)
+    //   - targetLevel: number (required)
+    //   - plannedLevel: number (required)
+    //   - completedItems: list of strings (required)
+    //
+    // Collection: trainingActions
+    // Document ID: {trainingActionId}
+    // Fields:
+    //   - userId: string (required)
+    //   - userName: string (required)
+    //   - taskId: string (required)
+    //   - targetLevel: number (required)
+    //   - trainerId: string (required)
+    //   - plannedDate: string (required)
+    //   - endDate: string (optional)
+    //   - status: string (required, 'planificada'|'retrasada'|'completada'|'verificada')
+    //   - verifierId: string (optional)
+    //   - verifierName: string (optional)
+    //   - verificationDate: string (optional)
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isAuthenticated() && (
+        request.auth.uid == userId || 
+        (toSafeString(request.auth.token.get('email', '')).lower() == toSafeString(userId).lower() && userId != '') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         toSafeString(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('email', '')).lower() == toSafeString(userId).lower()) ||
+        (request.auth.token.get('email', '') != '' && exists(/databases/$(database)/documents/users/$(request.auth.token.get('email', ''))) && 
+         toSafeString(get(/databases/$(database)/documents/users/$(request.auth.token.get('email', ''))).data.get('email', '')).lower() == toSafeString(userId).lower())
+      );
+    }
+    function isGlobalAdmin() {
+      let email = toSafeString(request.auth.token.get('email', '')).lower();
+      return isAuthenticated() && 
+        (email == "migcormar@gmail.com" || 
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin') ||
+         (email != '' && exists(/databases/$(database)/documents/users/$(email)) && 
+          get(/databases/$(database)/documents/users/$(email)).data.get('role', '') == 'admin'));
+    }
+    function isAdmin() {
+      let email = toSafeString(request.auth.token.get('email', '')).lower();
+      return isAuthenticated() &&
+        (isGlobalAdmin() ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin' ||
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'lean_promotor')) ||
+         (email != '' && exists(/databases/$(database)/documents/users/$(email)) && 
+          (get(/databases/$(database)/documents/users/$(email)).data.get('role', '') == 'admin' ||
+           get(/databases/$(database)/documents/users/$(email)).data.get('role', '') == 'lean_promotor')));
+    }
+    function isLeanPromotor() {
+      let email = toSafeString(request.auth.token.get('email', '')).lower();
+      return isAuthenticated() &&
+        (isGlobalAdmin() ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'lean_promotor') ||
+         (email != '' && exists(/databases/$(database)/documents/users/$(email)) && 
+          get(/databases/$(database)/documents/users/$(email)).data.get('role', '') == 'lean_promotor'));
+    }
+    function isSupervisor() {
+      let email = toSafeString(request.auth.token.get('email', '')).lower();
+      return isAuthenticated() &&
+        (isAdmin() ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'supervisor') ||
+         (email != '' && exists(/databases/$(database)/documents/users/$(email)) && 
+          get(/databases/$(database)/documents/users/$(email)).data.get('role', '') == 'supervisor'));
+    }
+    function isTeamSupervisor(teamId) {
+      return isAuthenticated() && 
+        teamId != null && teamId != '' &&
+        exists(/databases/$(database)/documents/teams/$(teamId)) &&
+        (get(/databases/$(database)/documents/teams/$(teamId)).data.supervisorId == request.auth.uid ||
+         get(/databases/$(database)/documents/teams/$(teamId)).data.supervisorId == toSafeString(request.auth.token.get('email', '')).lower());
+    }
+    function toSafeString(val) {
+      return val == null ? '' : string(val);
+    }
+    function getUserCompanyId() {
+      let email = toSafeString(request.auth.token.get('email', '')).lower();
+      return (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && toSafeString(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('companyId', '')) != '') ? 
+        toSafeString(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('companyId', '')) :
+        (email != '' && exists(/databases/$(database)/documents/users/$(email)) ?
+         toSafeString(get(/databases/$(database)/documents/users/$(email)).data.get('companyId', '')) : '');
+    }
+    function belongsToCompany(companyId) {
+      return isAuthenticated() && (isGlobalAdmin() || (getUserCompanyId() == companyId));
+    }
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid;
+    }
+    function uidNotModified() {
+      return !('uid' in request.resource.data) || 
+             !('uid' in resource.data) || 
+             resource.data.uid == '' || 
+             resource.data.uid == null ||
+             request.resource.data.uid == resource.data.uid;
+    }
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+    
+    // Domain Validators
+    function isValidCompany(data) {
+      return hasOnlyAllowedFields(['id', 'name', 'createdAt']) &&
+             (!('id' in data) || data.id is string) && 
+             data.name is string && data.createdAt is string;
+    }
+
+    function isValidUser(data) {
+      return data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.email is string && isValidEmail(data.email) && data.email.size() < 100 &&
+             data.role in ['admin', 'supervisor', 'user', 'lean_promotor'] &&
+             data.status in ['active', 'inactive'] &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 2048)) &&
+             (!('companyId' in data) || (data.companyId is string)) &&
+             (!('id' in data) || (data.id is string));
+    }
+    
+    function isValidTeam(data) {
+      return data.keys().hasAll(['name', 'supervisorId', 'members', 'processIds', 'companyId']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.supervisorId is string && data.supervisorId.size() <= 100 &&
+             data.members is list && data.members.size() <= 1000 &&
+             data.processIds is list && data.processIds.size() <= 100 &&
+             data.companyId is string &&
+             (!('parentTeamId' in data) || (data.parentTeamId is string && data.parentTeamId.size() <= 100)) &&
+             (!('supervisorName' in data) || (data.supervisorName is string && data.supervisorName.size() <= 100)) &&
+             (!('id' in data) || (data.id is string));
+    }
+
+    function isValidProcess(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.description is string && data.description.size() <= 1000 &&
+             data.companyId is string &&
+             (!('id' in data) || (data.id is string));
+    }
+
+    function isValidTask(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.processId is string && data.processId.size() > 0 && data.processId.size() < 100 &&
+             data.criteriaId is string && data.criteriaId.size() > 0 && data.criteriaId.size() < 100 &&
+             data.attachments is list && data.attachments.size() <= 50 &&
+             data.companyId is string &&
+             (!('id' in data) || (data.id is string));
+    }
+
+    function isValidCriterion(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.levels is list && data.levels.size() > 0 && data.levels.size() <= 10 &&
+             data.companyId is string &&
+             (!('id' in data) || (data.id is string));
+    }
+
+    function isValidUserTaskLevel(data) {
+      return data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
+             data.userName is string && data.userName.size() > 0 && data.userName.size() < 100 &&
+             data.taskId is string && data.taskId.size() > 0 && data.taskId.size() < 100 &&
+             (!('currentLevel' in data) || (data.currentLevel is number && data.currentLevel >= 0 && data.currentLevel <= 10)) &&
+             (!('targetLevel' in data) || (data.targetLevel is number && data.targetLevel >= 0 && data.targetLevel <= 10)) &&
+             (!('plannedLevel' in data) || (data.plannedLevel is number && data.plannedLevel >= 0 && data.plannedLevel <= 10)) &&
+             (!('completedItems' in data) || (data.completedItems is list && data.completedItems.size() <= 100)) &&
+             (!('selfLevel' in data) || (data.selfLevel is number && data.selfLevel >= 0 && data.selfLevel <= 10)) &&
+             (!('selfCompletedItems' in data) || (data.selfCompletedItems is list && data.selfCompletedItems.size() <= 100)) &&
+             data.companyId is string &&
+             (!('id' in data) || (data.id is string));
+    }
+
+    function isValidTrainingAction(data) {
+      return data.keys().hasAll(['userId', 'userName', 'taskId', 'targetLevel', 'trainerId', 'plannedDate', 'status', 'companyId']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
+             data.userName is string && data.userName.size() > 0 && data.userName.size() < 100 &&
+             data.taskId is string && data.taskId.size() > 0 && data.taskId.size() < 100 &&
+             data.targetLevel is number && data.targetLevel >= 0 && data.targetLevel <= 10 &&
+             data.trainerId is string && data.trainerId.size() > 0 && data.trainerId.size() < 100 &&
+             data.plannedDate is string && data.plannedDate.size() > 0 && data.plannedDate.size() < 50 &&
+             data.status in ['planificada', 'retrasada', 'completada', 'verificada'] &&
+             data.companyId is string &&
+             (!('trainerName' in data) || (data.trainerName is string && data.trainerName.size() <= 100)) &&
+             (!('endDate' in data) || (data.endDate is string && data.endDate.size() < 50)) &&
+             (!('verifierId' in data) || (data.verifierId is string && data.verifierId.size() < 100)) &&
+             (!('verifierName' in data) || (data.verifierName is string && data.verifierName.size() < 100)) &&
+             (!('verificationDate' in data) || (data.verificationDate is string && data.verificationDate.size() < 50)) &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 2000)) &&
+             (!('id' in data) || (data.id is string));
+    }
+
+    function isValidTeamTarget(data) {
+      return data.keys().hasAll(['teamId', 'processId', 'taskId', 'targetCounts', 'companyId']) &&
+             data.teamId is string && data.teamId.size() > 0 && data.teamId.size() < 100 &&
+             data.processId is string && data.processId.size() > 0 && data.processId.size() < 100 &&
+             data.taskId is string && data.taskId.size() > 0 && data.taskId.size() < 100 &&
+             data.targetCounts is map &&
+             data.companyId is string &&
+             (!('id' in data) || (data.id is string));
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /companies/{companyId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isGlobalAdmin() && isValidCompany(request.resource.data);
+      allow delete: if isGlobalAdmin();
+    }
+
+    match /users/{userId} {
+      // Users can read their own profile. Admins and supervisors can read all in their company.
+      allow read: if isOwner(userId) || 
+                    (isAuthenticated() && (
+                      (resource != null && resource.data.email == request.auth.token.email) || 
+                      (isAdmin() && (resource == null || belongsToCompany(resource.data.companyId))) ||
+                      (isSupervisor() && (resource == null || belongsToCompany(resource.data.companyId))) ||
+                      (isGlobalAdmin())
+                    ));
+      // Only global admin can create/update admins or lean promoters
+      function isAssigningPrivilegedRole() {
+        return request.resource.data.get('role', '') in ['admin', 'lean_promotor'];
+      }
+
+      // Only admins can create/update users in their company, OR a user can create their own profile if they are not an admin
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    (
+                      isGlobalAdmin() ||
+                      (isOwner(userId) && uidUnchanged() && 
+                        (
+                          request.resource.data.role == 'user' || 
+                          (exists(/databases/$(database)/documents/users/$(request.auth.token.email)) && 
+                           get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == request.resource.data.role)
+                        )
+                      ) || 
+                      (isAdmin() && !isAssigningPrivilegedRole() && (request.resource.data.get('companyId', '') == '' || belongsToCompany(request.resource.data.get('companyId', ''))))
+                    );
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    (
+                      isGlobalAdmin() ||
+                      (isOwner(userId) && request.resource.data.role == resource.data.role && uidNotModified()) || 
+                      (isAdmin() && !isAssigningPrivilegedRole() && (request.resource.data.get('companyId', '') == '' || belongsToCompany(request.resource.data.get('companyId', ''))))
+                    );
+      allow delete: if isOwner(userId) || isGlobalAdmin() || (isAdmin() && belongsToCompany(resource.data.get('companyId', '')));
+    }
+
+    match /teams/{teamId} {
+      allow read: if belongsToCompany(resource.data.companyId);
+      allow create: if isAdmin() && isValidTeam(request.resource.data) && belongsToCompany(request.resource.data.companyId);
+      allow update: if isAdmin() && isValidTeam(request.resource.data) && belongsToCompany(request.resource.data.companyId);
+      allow delete: if isAdmin() && belongsToCompany(resource.data.companyId);
+    }
+
+    match /processes/{processId} {
+      allow read: if belongsToCompany(resource.data.companyId);
+      allow create, update: if isAdmin() && isValidProcess(request.resource.data) && belongsToCompany(request.resource.data.companyId);
+      allow delete: if isAdmin() && belongsToCompany(resource.data.companyId);
+    }
+
+    match /tasks/{taskId} {
+      allow read: if belongsToCompany(resource.data.companyId);
+      allow create, update: if isAdmin() && isValidTask(request.resource.data) && belongsToCompany(request.resource.data.companyId);
+      allow delete: if isAdmin() && belongsToCompany(resource.data.companyId);
+    }
+
+    match /criteria/{criterionId} {
+      allow read: if belongsToCompany(resource.data.companyId);
+      allow create, update: if isAdmin() && isValidCriterion(request.resource.data) && belongsToCompany(request.resource.data.companyId);
+      allow delete: if isAdmin() && belongsToCompany(resource.data.companyId);
+    }
+
+    match /userTaskLevels/{userTaskLevelId} {
+      allow read: if isAuthenticated() && (resource == null || belongsToCompany(resource.data.get('companyId', '')));
+      allow create: if isAuthenticated() && isValidUserTaskLevel(request.resource.data) && 
+                    belongsToCompany(request.resource.data.get('companyId', '')) &&
+                    (isAdmin() || isSupervisor() || isOwner(request.resource.data.userId) || isTeamSupervisor(request.resource.data.get('teamId', '')));
+      allow update: if isAuthenticated() && isValidUserTaskLevel(request.resource.data) && 
+                    belongsToCompany(request.resource.data.get('companyId', '')) &&
+                    (
+                      isAdmin() || isSupervisor() || 
+                      isTeamSupervisor(resource.data.get('teamId', '')) || 
+                      isTeamSupervisor(request.resource.data.get('teamId', '')) ||
+                      (isOwner(resource.data.userId) && 
+                       (!('currentLevel' in request.resource.data) || request.resource.data.currentLevel == resource.data.currentLevel) &&
+                       (!('completedItems' in request.resource.data) || request.resource.data.completedItems == resource.data.completedItems) &&
+                       (!('targetLevel' in request.resource.data) || request.resource.data.targetLevel == resource.data.targetLevel) &&
+                       (!('plannedLevel' in request.resource.data) || request.resource.data.plannedLevel == resource.data.plannedLevel))
+                    );
+      allow delete: if isAdmin() && belongsToCompany(resource.data.get('companyId', ''));
+    }
+
+    match /trainingActions/{trainingActionId} {
+      allow read: if belongsToCompany(resource.data.companyId);
+      allow create: if (isAdmin() || isSupervisor()) && isValidTrainingAction(request.resource.data) && belongsToCompany(request.resource.data.companyId);
+      allow update: if (isAdmin() || isSupervisor() || request.auth.uid == resource.data.trainerId) && isValidTrainingAction(request.resource.data) && belongsToCompany(request.resource.data.companyId);
+      allow delete: if isAdmin() && belongsToCompany(resource.data.companyId);
+    }
+
+    match /teamTargets/{teamTargetId} {
+      allow read: if belongsToCompany(resource.data.companyId);
+      allow create: if (isAdmin() || isSupervisor()) && isValidTeamTarget(request.resource.data) && belongsToCompany(request.resource.data.companyId);
+      allow update: if (isAdmin() || isSupervisor()) && isValidTeamTarget(request.resource.data) && belongsToCompany(request.resource.data.companyId);
+      allow delete: if isAdmin() && belongsToCompany(resource.data.companyId);
+    }
+  }
+}

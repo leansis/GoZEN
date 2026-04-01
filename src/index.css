@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@theme {
+  --animate-border-blink: border-blink 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  @keyframes border-blink {
+    0%, 100% {
+      border-color: transparent;
+    }
+    50% {
+      border-color: var(--color-blue-500);
+    }
+  }
+}
