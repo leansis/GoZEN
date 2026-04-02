@@ -148,8 +148,10 @@ export default function Tasks() {
 
   if (loading) return <div>Cargando...</div>;
 
+  const sortedActivities = [...activities].sort((a, b) => (a.order || 0) - (b.order || 0));
   const sortedProcesses = [...processes].sort((a, b) => (a.order || 0) - (b.order || 0));
   const unassignedTasks = tasks.filter(t => !t.processId).sort((a, b) => (a.order || 0) - (b.order || 0));
+  const unassignedProcesses = sortedProcesses.filter(p => !p.activityId);
 
   const filterTasks = (taskList: Task[]) => {
     if (!globalSearch) return taskList;
@@ -189,55 +191,121 @@ export default function Tasks() {
       </div>
 
       <div className="space-y-8">
-        {sortedProcesses.map(process => {
-          const processTasks = tasks
-            .filter(t => t.processId === process.id)
-            .sort((a, b) => (a.order || 0) - (b.order || 0));
+        {sortedActivities.map(activity => {
+          const activityProcesses = sortedProcesses.filter(p => p.activityId === activity.id);
           
-          const filteredProcessTasks = filterTasks(processTasks);
+          // Check if this activity has any tasks matching the search
+          const hasMatchingTasks = activityProcesses.some(process => {
+            const processTasks = tasks.filter(t => t.processId === process.id);
+            return filterTasks(processTasks).length > 0;
+          });
 
-          if (filteredProcessTasks.length === 0 && globalSearch) return null;
-
-          const activity = activities.find(a => a.id === process.activityId);
+          if (!hasMatchingTasks && globalSearch) return null;
 
           return (
-            <div key={process.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <div className="mb-4">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-semibold text-gray-800">{process.name}</h2>
-                  {activity && (
-                    <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full font-medium">
-                      {activity.name}
-                    </span>
-                  )}
-                </div>
-                {process.description && <p className="text-sm text-gray-500 mt-1">{process.description}</p>}
+            <div key={activity.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+              <div className="mb-6 border-b pb-4">
+                <h2 className="text-xl font-bold text-gray-800">{activity.name}</h2>
+                {activity.description && <p className="text-sm text-gray-500 mt-1">{activity.description}</p>}
               </div>
-              <Table<Task>
-                data={filteredProcessTasks}
-                columns={[
-                  { header: 'Tarea', accessor: 'name', sortable: true },
-                  { 
-                    header: 'Criterio', 
-                    accessor: (t) => criteria.find(c => c.id === t.criteriaId)?.name || 'Desconocido',
-                    sortable: true,
-                    sortAccessor: (t) => criteria.find(c => c.id === t.criteriaId)?.name || ''
-                  },
-                  { header: 'Adjuntos', accessor: (t) => t.attachments?.length || 0 },
-                ]}
-                onEdit={setEditingTask}
-                onDelete={setTaskToDelete}
-                onReorder={handleReorder}
-                searchable={false}
-              />
+              
+              <div className="space-y-6 pl-4 border-l-2 border-blue-100">
+                {activityProcesses.map(process => {
+                  const processTasks = tasks
+                    .filter(t => t.processId === process.id)
+                    .sort((a, b) => (a.order || 0) - (b.order || 0));
+                  
+                  const filteredProcessTasks = filterTasks(processTasks);
+
+                  if (filteredProcessTasks.length === 0 && globalSearch) return null;
+
+                  return (
+                    <div key={process.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <div className="mb-3">
+                        <h3 className="text-lg font-semibold text-gray-700">{process.name}</h3>
+                        {process.description && <p className="text-sm text-gray-500">{process.description}</p>}
+                      </div>
+                      <Table<Task>
+                        data={filteredProcessTasks}
+                        columns={[
+                          { header: 'Tarea', accessor: 'name', sortable: true },
+                          { 
+                            header: 'Criterio', 
+                            accessor: (t) => criteria.find(c => c.id === t.criteriaId)?.name || 'Desconocido',
+                            sortable: true,
+                            sortAccessor: (t) => criteria.find(c => c.id === t.criteriaId)?.name || ''
+                          },
+                          { header: 'Adjuntos', accessor: (t) => t.attachments?.length || 0 },
+                        ]}
+                        onEdit={setEditingTask}
+                        onDelete={setTaskToDelete}
+                        onReorder={handleReorder}
+                        searchable={false}
+                      />
+                    </div>
+                  );
+                })}
+                
+                {activityProcesses.length === 0 && !globalSearch && (
+                  <p className="text-sm text-gray-400 italic">No hay procesos en esta actividad.</p>
+                )}
+              </div>
             </div>
           );
         })}
 
+        {/* Processes without an Activity */}
+        {unassignedProcesses.length > 0 && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <div className="mb-6 border-b pb-4">
+              <h2 className="text-xl font-bold text-gray-500">Procesos sin Actividad</h2>
+            </div>
+            
+            <div className="space-y-6 pl-4 border-l-2 border-gray-100">
+              {unassignedProcesses.map(process => {
+                const processTasks = tasks
+                  .filter(t => t.processId === process.id)
+                  .sort((a, b) => (a.order || 0) - (b.order || 0));
+                
+                const filteredProcessTasks = filterTasks(processTasks);
+
+                if (filteredProcessTasks.length === 0 && globalSearch) return null;
+
+                return (
+                  <div key={process.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <div className="mb-3">
+                      <h3 className="text-lg font-semibold text-gray-700">{process.name}</h3>
+                      {process.description && <p className="text-sm text-gray-500">{process.description}</p>}
+                    </div>
+                    <Table<Task>
+                      data={filteredProcessTasks}
+                      columns={[
+                        { header: 'Tarea', accessor: 'name', sortable: true },
+                        { 
+                          header: 'Criterio', 
+                          accessor: (t) => criteria.find(c => c.id === t.criteriaId)?.name || 'Desconocido',
+                          sortable: true,
+                          sortAccessor: (t) => criteria.find(c => c.id === t.criteriaId)?.name || ''
+                        },
+                        { header: 'Adjuntos', accessor: (t) => t.attachments?.length || 0 },
+                      ]}
+                      onEdit={setEditingTask}
+                      onDelete={setTaskToDelete}
+                      onReorder={handleReorder}
+                      searchable={false}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Tasks without a Process */}
         {(unassignedTasks.length > 0 || (!globalSearch && tasks.length === 0)) && (
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
             <div className="mb-4">
-              <h2 className="text-lg font-semibold text-gray-500">Sin Proceso Asignado</h2>
+              <h2 className="text-lg font-semibold text-gray-500">Tareas sin Proceso Asignado</h2>
               <p className="text-sm text-gray-400 mt-1">Tareas que no pertenecen a ningún proceso</p>
             </div>
             <Table<Task>
@@ -260,9 +328,9 @@ export default function Tasks() {
           </div>
         )}
 
-        {processes.length === 0 && tasks.length === 0 && (
+        {activities.length === 0 && processes.length === 0 && tasks.length === 0 && (
           <div className="text-center py-10 text-gray-500 bg-white rounded-xl shadow-sm border border-gray-200">
-            No hay tareas ni procesos disponibles. Crea uno nuevo para comenzar.
+            No hay tareas, procesos ni actividades disponibles. Crea uno nuevo para comenzar.
           </div>
         )}
       </div>
