@@ -65,6 +65,7 @@ export interface Task {
   criteriaId: string;
   attachments: Attachment[];
   companyId: string;
+  order?: number;
 }
 
 export interface CriterionItem {

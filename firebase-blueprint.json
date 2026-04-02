@@ -71,9 +71,11 @@
       "properties": {
         "name": { "type": "string" },
         "processId": { "type": "string" },
+        "activityId": { "type": "string" },
         "criteriaId": { "type": "string" },
         "attachments": { "type": "array", "items": { "type": "string" } },
-        "companyId": { "type": "string" }
+        "companyId": { "type": "string" },
+        "order": { "type": "number" }
       },
       "required": ["name", "processId", "criteriaId", "attachments", "companyId"]
     },

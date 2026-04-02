@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, query, where, writeBatch } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../firebase';
 import { useAuth } from '../../AuthContext';
@@ -20,6 +20,7 @@ export default function Tasks() {
   const [loading, setLoading] = useState(true);
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [globalSearch, setGlobalSearch] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -77,6 +78,8 @@ export default function Tasks() {
       if (editingTask.id) {
         await updateDoc(doc(db, 'tasks', editingTask.id), taskData);
       } else {
+        const nextOrder = tasks.length > 0 ? Math.max(...tasks.map(t => t.order || 0)) + 1 : 0;
+        taskData.order = nextOrder;
         await addDoc(collection(db, 'tasks'), taskData);
       }
       setEditingTask(null);
@@ -94,6 +97,22 @@ export default function Tasks() {
         console.error('Error deleting task:', error);
         setSaveError(error.message || 'Error al eliminar la tarea. Verifica los permisos.');
       }
+    }
+  };
+
+  const handleReorder = async (reorderedTasks: Task[]) => {
+    try {
+      const batch = writeBatch(db);
+      reorderedTasks.forEach((task, index) => {
+        if (task.order !== index) {
+          const ref = doc(db, 'tasks', task.id);
+          batch.update(ref, { order: index });
+        }
+      });
+      await batch.commit();
+    } catch (error) {
+      console.error('Error reordering tasks:', error);
+      setSaveError('Error al reordenar las tareas.');
     }
   };
 
@@ -129,6 +148,17 @@ export default function Tasks() {
 
   if (loading) return <div>Cargando...</div>;
 
+  const sortedProcesses = [...processes].sort((a, b) => (a.order || 0) - (b.order || 0));
+  const unassignedTasks = tasks.filter(t => !t.processId).sort((a, b) => (a.order || 0) - (b.order || 0));
+
+  const filterTasks = (taskList: Task[]) => {
+    if (!globalSearch) return taskList;
+    const lower = globalSearch.toLowerCase();
+    return taskList.filter(t => 
+      t.name.toLowerCase().includes(lower)
+    );
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -148,39 +178,94 @@ export default function Tasks() {
         </div>
       )}
 
-      <Table<Task>
-        data={tasks}
-        columns={[
-          { header: 'Tarea', accessor: 'name', sortable: true },
-          { 
-            header: 'Actividad', 
-            accessor: (t) => {
-              const process = processes.find(p => p.id === t.processId);
-              return activities.find(a => a.id === process?.activityId)?.name || '-';
-            },
-            sortable: true,
-            sortAccessor: (t) => {
-              const process = processes.find(p => p.id === t.processId);
-              return activities.find(a => a.id === process?.activityId)?.name || '';
-            }
-          },
-          { 
-            header: 'Proceso', 
-            accessor: (t) => processes.find(p => p.id === t.processId)?.name || 'Desconocido',
-            sortable: true,
-            sortAccessor: (t) => processes.find(p => p.id === t.processId)?.name || ''
-          },
-          { 
-            header: 'Criterio', 
-            accessor: (t) => criteria.find(c => c.id === t.criteriaId)?.name || 'Desconocido',
-            sortable: true,
-            sortAccessor: (t) => criteria.find(c => c.id === t.criteriaId)?.name || ''
-          },
-          { header: 'Adjuntos', accessor: (t) => t.attachments?.length || 0 },
-        ]}
-        onEdit={setEditingTask}
-        onDelete={setTaskToDelete}
-      />
+      <div className="mb-6">
+        <input
+          type="text"
+          placeholder="Buscar tareas..."
+          value={globalSearch}
+          onChange={(e) => setGlobalSearch(e.target.value)}
+          className="w-full md:w-1/3 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+      </div>
+
+      <div className="space-y-8">
+        {sortedProcesses.map(process => {
+          const processTasks = tasks
+            .filter(t => t.processId === process.id)
+            .sort((a, b) => (a.order || 0) - (b.order || 0));
+          
+          const filteredProcessTasks = filterTasks(processTasks);
+
+          if (filteredProcessTasks.length === 0 && globalSearch) return null;
+
+          const activity = activities.find(a => a.id === process.activityId);
+
+          return (
+            <div key={process.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+              <div className="mb-4">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-semibold text-gray-800">{process.name}</h2>
+                  {activity && (
+                    <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full font-medium">
+                      {activity.name}
+                    </span>
+                  )}
+                </div>
+                {process.description && <p className="text-sm text-gray-500 mt-1">{process.description}</p>}
+              </div>
+              <Table<Task>
+                data={filteredProcessTasks}
+                columns={[
+                  { header: 'Tarea', accessor: 'name', sortable: true },
+                  { 
+                    header: 'Criterio', 
+                    accessor: (t) => criteria.find(c => c.id === t.criteriaId)?.name || 'Desconocido',
+                    sortable: true,
+                    sortAccessor: (t) => criteria.find(c => c.id === t.criteriaId)?.name || ''
+                  },
+                  { header: 'Adjuntos', accessor: (t) => t.attachments?.length || 0 },
+                ]}
+                onEdit={setEditingTask}
+                onDelete={setTaskToDelete}
+                onReorder={handleReorder}
+                searchable={false}
+              />
+            </div>
+          );
+        })}
+
+        {(unassignedTasks.length > 0 || (!globalSearch && tasks.length === 0)) && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-gray-500">Sin Proceso Asignado</h2>
+              <p className="text-sm text-gray-400 mt-1">Tareas que no pertenecen a ningún proceso</p>
+            </div>
+            <Table<Task>
+              data={filterTasks(unassignedTasks)}
+              columns={[
+                { header: 'Tarea', accessor: 'name', sortable: true },
+                { 
+                  header: 'Criterio', 
+                  accessor: (t) => criteria.find(c => c.id === t.criteriaId)?.name || 'Desconocido',
+                  sortable: true,
+                  sortAccessor: (t) => criteria.find(c => c.id === t.criteriaId)?.name || ''
+                },
+                { header: 'Adjuntos', accessor: (t) => t.attachments?.length || 0 },
+              ]}
+              onEdit={setEditingTask}
+              onDelete={setTaskToDelete}
+              onReorder={handleReorder}
+              searchable={false}
+            />
+          </div>
+        )}
+
+        {processes.length === 0 && tasks.length === 0 && (
+          <div className="text-center py-10 text-gray-500 bg-white rounded-xl shadow-sm border border-gray-200">
+            No hay tareas ni procesos disponibles. Crea uno nuevo para comenzar.
+          </div>
+        )}
+      </div>
 
       <ConfirmModal
         isOpen={!!taskToDelete}

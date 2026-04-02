@@ -1,14 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../AuthContext';
-import { collection, onSnapshot, doc, updateDoc, setDoc, deleteDoc, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, setDoc, deleteDoc, query, where, writeBatch } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { User, Company } from '../../types';
 import { handleFirestoreError, OperationType } from '../../lib/firestore-utils';
 import Table from '../../components/Table';
 import Modal from '../../components/Modal';
 import ConfirmModal from '../../components/ConfirmModal';
-import { Plus, Building2, Users as UsersIcon } from 'lucide-react';
+import { Plus, Building2, Users as UsersIcon, Upload } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 export default function Users() {
   const { isAdmin, isLeanPromotor, isGlobalAdmin, activeCompanyId } = useAuth();
@@ -27,6 +28,8 @@ export default function Users() {
   });
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (activeCompanyId) {
@@ -110,6 +113,72 @@ export default function Users() {
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    setSaveError(null);
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+      const batch = writeBatch(db);
+      let count = 0;
+
+      for (const row of jsonData as any[]) {
+        const name = row['Nombre'] || row['Name'] || row['nombre'] || row['name'];
+        const email = row['Email'] || row['Correo'] || row['email'] || row['correo'];
+        let role = (row['Rol'] || row['Role'] || row['rol'] || row['role'] || 'user').toString().toLowerCase();
+
+        if (!name || !email) continue;
+
+        // Map roles
+        if (role === 'administrador') role = 'admin';
+        if (role === 'promotor' || role === 'lean promotor') role = 'lean_promotor';
+        if (!['admin', 'supervisor', 'user', 'lean_promotor'].includes(role)) {
+          role = 'user';
+        }
+
+        // Only global admin can create admins via excel, otherwise fallback to lean_promotor or user
+        if (role === 'admin' && !isGlobalAdmin) {
+          role = 'lean_promotor';
+        }
+
+        const docId = email.toLowerCase().trim();
+        const userRef = doc(db, 'users', docId);
+        
+        batch.set(userRef, {
+          uid: docId,
+          name: name.toString().trim(),
+          email: docId,
+          role: role,
+          status: 'active',
+          companyId: activeCompanyId || ''
+        });
+        count++;
+      }
+
+      if (count > 0) {
+        await batch.commit();
+        alert(`Se han importado ${count} usuarios correctamente.`);
+      } else {
+        setSaveError('No se encontraron usuarios válidos en el archivo. Asegúrate de que tenga las columnas Nombre, Email y Rol.');
+      }
+    } catch (error: any) {
+      console.error('Error importing users:', error);
+      setSaveError('Error al importar usuarios: ' + error.message);
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   if (loading) return <div>Cargando...</div>;
 
   return (
@@ -125,13 +194,31 @@ export default function Users() {
           </button>
           <h1 className="text-2xl font-bold text-gray-800">Usuarios</h1>
         </div>
-        <button
-          onClick={() => setIsAddingUser(true)}
-          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          Nuevo Usuario
-        </button>
+        <div className="flex gap-3">
+          <input
+            type="file"
+            accept=".xlsx, .xls"
+            className="hidden"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isImporting}
+            className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+            title="Importar usuarios desde Excel (Columnas: Nombre, Email, Rol)"
+          >
+            <Upload className="w-5 h-5 mr-2" />
+            {isImporting ? 'Importando...' : 'Importar Excel'}
+          </button>
+          <button
+            onClick={() => setIsAddingUser(true)}
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            Nuevo Usuario
+          </button>
+        </div>
       </div>
 
       {saveError && (
