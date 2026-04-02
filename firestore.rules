@@ -194,10 +194,20 @@ service cloud.firestore {
              (!('id' in data) || (data.id is string));
     }
 
+    function isValidActivity(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 1000)) &&
+             data.companyId is string &&
+             (!('order' in data) || (data.order is number)) &&
+             (!('id' in data) || (data.id is string));
+    }
+
     function isValidProcess(data) {
       return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              data.description is string && data.description.size() <= 1000 &&
              data.companyId is string &&
+             (!('activityId' in data) || (data.activityId is string && data.activityId.size() <= 100)) &&
+             (!('order' in data) || (data.order is number)) &&
              (!('id' in data) || (data.id is string));
     }
 
@@ -207,6 +217,7 @@ service cloud.firestore {
              data.criteriaId is string && data.criteriaId.size() > 0 && data.criteriaId.size() < 100 &&
              data.attachments is list && data.attachments.size() <= 50 &&
              data.companyId is string &&
+             (!('activityId' in data) || (data.activityId is string && data.activityId.size() <= 100)) &&
              (!('id' in data) || (data.id is string));
     }
 
@@ -310,6 +321,12 @@ service cloud.firestore {
       allow read: if belongsToCompany(resource.data.companyId);
       allow create: if isAdmin() && isValidTeam(request.resource.data) && belongsToCompany(request.resource.data.companyId);
       allow update: if isAdmin() && isValidTeam(request.resource.data) && belongsToCompany(request.resource.data.companyId);
+      allow delete: if isAdmin() && belongsToCompany(resource.data.companyId);
+    }
+
+    match /activities/{activityId} {
+      allow read: if belongsToCompany(resource.data.companyId);
+      allow create, update: if isAdmin() && isValidActivity(request.resource.data) && belongsToCompany(request.resource.data.companyId);
       allow delete: if isAdmin() && belongsToCompany(resource.data.companyId);
     }
 

@@ -34,10 +34,20 @@ export interface Team {
   companyId: string;
 }
 
+export interface Activity {
+  id: string;
+  name: string;
+  description?: string;
+  order?: number;
+  companyId: string;
+}
+
 export interface Process {
   id: string;
   name: string;
   description: string;
+  activityId?: string;
+  order?: number;
   companyId: string;
 }
 
@@ -50,6 +60,7 @@ export interface Task {
   id: string;
   name: string;
   description?: string;
+  activityId?: string;
   processId: string;
   criteriaId: string;
   attachments: Attachment[];

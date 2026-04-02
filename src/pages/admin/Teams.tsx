@@ -143,13 +143,15 @@ export default function Teams() {
       <Table<Team>
         data={teams}
         columns={[
-          { header: 'Equipo', accessor: 'name' },
+          { header: 'Equipo', accessor: 'name', sortable: true },
           { 
             header: 'Supervisor', 
-            accessor: (t) => t.supervisorName || users.find(u => u.uid === t.supervisorId)?.name || 'Desconocido'
+            accessor: (t) => t.supervisorName || users.find(u => u.uid === t.supervisorId)?.name || 'Desconocido',
+            sortable: true,
+            sortAccessor: (t) => t.supervisorName || users.find(u => u.uid === t.supervisorId)?.name || ''
           },
-          { header: 'Miembros', accessor: (t) => t.members?.length || 0 },
-          { header: 'Procesos', accessor: (t) => t.processIds?.length || 0 },
+          { header: 'Miembros', accessor: (t) => t.members?.length || 0, sortable: true },
+          { header: 'Procesos', accessor: (t) => t.processIds?.length || 0, sortable: true },
         ]}
         onEdit={setEditingTeam}
         onDelete={setTeamToDelete}

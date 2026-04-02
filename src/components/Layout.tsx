@@ -41,6 +41,7 @@ export default function Layout() {
   const adminItems = [
     { name: 'Equipos', path: '/admin/teams', icon: Users },
     { name: 'Usuarios', path: '/admin/users', icon: UserCog },
+    { name: 'Actividades', path: '/admin/activities', icon: Folder },
     { name: 'Procesos', path: '/admin/processes', icon: Settings },
     { name: 'Tareas', path: '/admin/tasks', icon: CheckSquare },
     { name: 'Criterios', path: '/admin/criteria', icon: ListChecks },

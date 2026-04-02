@@ -143,8 +143,8 @@ export default function Users() {
       <Table<User & { id: string }>
         data={users}
         columns={[
-          { header: 'Nombre', accessor: 'name' },
-          { header: 'Email', accessor: 'email' },
+          { header: 'Nombre', accessor: 'name', sortable: true },
+          { header: 'Email', accessor: 'email', sortable: true },
           { 
             header: 'Empresa', 
             accessor: (user) => {
@@ -155,10 +155,12 @@ export default function Users() {
                   {company.name}
                 </div>
               ) : <span className="text-gray-400 italic">Sin asignar</span>;
-            }
+            },
+            sortable: true,
+            sortAccessor: (user) => companies.find(c => c.id === user.companyId)?.name || ''
           },
-          { header: 'Rol', accessor: 'role' },
-          { header: 'Estado', accessor: 'status' },
+          { header: 'Rol', accessor: 'role', sortable: true },
+          { header: 'Estado', accessor: 'status', sortable: true },
         ]}
         onEdit={setEditingUser}
         onDelete={setUserToDelete}

@@ -139,8 +139,8 @@ export default function Criteria() {
       <Table<Criterion>
         data={criteria}
         columns={[
-          { header: 'Nombre', accessor: 'name' },
-          { header: 'Niveles configurados', accessor: (c) => c.levels.length },
+          { header: 'Nombre', accessor: 'name', sortable: true },
+          { header: 'Niveles configurados', accessor: (c) => c.levels.length, sortable: true },
         ]}
         onEdit={setEditingCriterion}
         onDelete={setCriterionToDelete}

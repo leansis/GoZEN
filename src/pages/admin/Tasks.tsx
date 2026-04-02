@@ -3,7 +3,7 @@ import { collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, query, where
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../firebase';
 import { useAuth } from '../../AuthContext';
-import { Task, Process, Criterion, Attachment } from '../../types';
+import { Task, Process, Criterion, Attachment, Activity } from '../../types';
 import Table from '../../components/Table';
 import Modal from '../../components/Modal';
 import ConfirmModal from '../../components/ConfirmModal';
@@ -14,6 +14,7 @@ export default function Tasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [processes, setProcesses] = useState<Process[]>([]);
   const [criteria, setCriteria] = useState<Criterion[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [editingTask, setEditingTask] = useState<Partial<Task> | null>(null);
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,10 +42,16 @@ export default function Tasks() {
       setCriteria(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Criterion)));
     });
 
+    const qActivities = query(collection(db, 'activities'), where('companyId', '==', companyId || ''));
+    const unsubActivities = onSnapshot(qActivities, (snapshot) => {
+      setActivities(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Activity)));
+    });
+
     return () => {
       unsubTasks();
       unsubProcesses();
       unsubCriteria();
+      unsubActivities();
     };
   }, [dbUser, activeCompanyId]);
 
@@ -56,7 +63,7 @@ export default function Tasks() {
     const companyId = activeCompanyId || dbUser.companyId;
 
     try {
-      const taskData = {
+      const taskData: any = {
         name: editingTask.name,
         processId: editingTask.processId,
         criteriaId: editingTask.criteriaId,
@@ -144,14 +151,30 @@ export default function Tasks() {
       <Table<Task>
         data={tasks}
         columns={[
-          { header: 'Tarea', accessor: 'name' },
+          { header: 'Tarea', accessor: 'name', sortable: true },
+          { 
+            header: 'Actividad', 
+            accessor: (t) => {
+              const process = processes.find(p => p.id === t.processId);
+              return activities.find(a => a.id === process?.activityId)?.name || '-';
+            },
+            sortable: true,
+            sortAccessor: (t) => {
+              const process = processes.find(p => p.id === t.processId);
+              return activities.find(a => a.id === process?.activityId)?.name || '';
+            }
+          },
           { 
             header: 'Proceso', 
-            accessor: (t) => processes.find(p => p.id === t.processId)?.name || 'Desconocido'
+            accessor: (t) => processes.find(p => p.id === t.processId)?.name || 'Desconocido',
+            sortable: true,
+            sortAccessor: (t) => processes.find(p => p.id === t.processId)?.name || ''
           },
           { 
             header: 'Criterio', 
-            accessor: (t) => criteria.find(c => c.id === t.criteriaId)?.name || 'Desconocido'
+            accessor: (t) => criteria.find(c => c.id === t.criteriaId)?.name || 'Desconocido',
+            sortable: true,
+            sortAccessor: (t) => criteria.find(c => c.id === t.criteriaId)?.name || ''
           },
           { header: 'Adjuntos', accessor: (t) => t.attachments?.length || 0 },
         ]}

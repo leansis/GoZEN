@@ -39,6 +39,18 @@
       },
       "required": ["name", "supervisorId", "memberIds", "processIds", "companyId"]
     },
+    "Activity": {
+      "title": "Activity",
+      "description": "An activity grouping processes",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "order": { "type": "number" },
+        "companyId": { "type": "string" }
+      },
+      "required": ["name", "companyId"]
+    },
     "Process": {
       "title": "Process",
       "description": "A process containing tasks",
@@ -46,6 +58,8 @@
       "properties": {
         "name": { "type": "string" },
         "description": { "type": "string" },
+        "activityId": { "type": "string" },
+        "order": { "type": "number" },
         "companyId": { "type": "string" }
       },
       "required": ["name", "description", "companyId"]
@@ -150,6 +164,10 @@
     }
   },
   "firestore": {
+    "/activities/{activityId}": {
+      "schema": { "$ref": "#/entities/Activity" },
+      "description": "Activities"
+    },
     "/companies/{companyId}": {
       "schema": { "$ref": "#/entities/Company" },
       "description": "Companies"

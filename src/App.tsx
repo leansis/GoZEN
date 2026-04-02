@@ -9,6 +9,7 @@ import Statistics from './pages/Statistics';
 import OHP from './pages/OHP';
 import AdminTeams from './pages/admin/Teams';
 import AdminUsers from './pages/admin/Users';
+import AdminActivities from './pages/admin/Activities';
 import AdminProcesses from './pages/admin/Processes';
 import AdminTasks from './pages/admin/Tasks';
 import AdminCriteria from './pages/admin/Criteria';
@@ -311,6 +312,7 @@ export default function App() {
               {/* Admin Routes */}
               <Route path="admin/teams" element={<ProtectedRoute requireAdmin><AdminTeams /></ProtectedRoute>} />
               <Route path="admin/users" element={<ProtectedRoute requireAdmin><AdminUsers /></ProtectedRoute>} />
+              <Route path="admin/activities" element={<ProtectedRoute requireAdmin><AdminActivities /></ProtectedRoute>} />
               <Route path="admin/processes" element={<ProtectedRoute requireAdmin><AdminProcesses /></ProtectedRoute>} />
               <Route path="admin/tasks" element={<ProtectedRoute requireAdmin><AdminTasks /></ProtectedRoute>} />
               <Route path="admin/criteria" element={<ProtectedRoute requireAdmin><AdminCriteria /></ProtectedRoute>} />
