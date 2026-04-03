@@ -11,6 +11,8 @@ jobs:
       - run: npm ci && npm run build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          workload_identity_provider: 'projects/459753165749/locations/global/workloadIdentityPools/github/providers/github'
-    service_account: 'github-action-1198362016@project-ccb31ac7-2f69-4bf5-b7f.iam.gserviceaccount.com'
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_PROJECT_CCB31AC7_2F69_4BF5_B7F }}'
+          channelId: live
+          projectId: project-ccb31ac7-2f69-4bf5-b7f
           
