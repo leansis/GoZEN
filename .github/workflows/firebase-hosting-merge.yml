@@ -1,18 +1,44 @@
 name: Deploy to Firebase Hosting on merge
-'on':
+
+on:
   push:
     branches:
-      - main
+      - main # Cambia a 'master' si tu rama principal se llama así
+
+# CRÍTICO: Estos permisos son obligatorios para que Workload Identity Federation funcione (OIDC)
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - run: npm ci && npm run build
-      - uses: FirebaseExtended/action-hosting-deploy@v0
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
         with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_PROJECT_CCB31AC7_2F69_4BF5_B7F }}'
-          channelId: live
+          node-version: '20' # Ajusta a la versión de Node que utilices
+
+      - name: Instalar dependencias
+        run: npm ci # Usa 'npm install' si no tienes package-lock.json
+
+      - name: Construir el proyecto
+        run: npm run build
+
+      - name: Autenticación en Google Cloud (Workload Identity Federation)
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/459753165749/locations/global/workloadIdentityPools/github/providers/github'
+          service_account: 'firebase-adminsdk-fbsvc@project-ccb31ac7-2f69-4bf5-b7f.iam.gserviceaccount.com'
+
+      - name: Desplegar a Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: 'firebase-adminsdk-fbsvc@project-ccb31ac7-2f69-4bf5-b7f.iam.gserviceaccount.com'
           projectId: project-ccb31ac7-2f69-4bf5-b7f
-          
+          channelId: live
