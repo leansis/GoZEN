@@ -20,6 +20,8 @@ import { db } from './firebase';
 
 import Home from './pages/Home';
 
+import ProcessMap from './pages/ProcessMap';
+
 const ProtectedRoute = ({ children, requireAdmin = false, requireSupervisor = false, requireGlobalAdmin = false }: { children: React.ReactNode, requireAdmin?: boolean, requireSupervisor?: boolean, requireGlobalAdmin?: boolean }) => {
   const { user, dbUser, loading, isAdmin, isSupervisor, isGlobalAdmin } = useAuth();
 
@@ -305,6 +307,7 @@ export default function App() {
             {/* Application Layout (With Sidebar) */}
             <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route path="matrix" element={<Matrix />} />
+              <Route path="process-map" element={<ProcessMap />} />
               <Route path="training" element={<TrainingActions />} />
               <Route path="statistics" element={<Statistics />} />
               <Route path="ohp" element={<OHP />} />

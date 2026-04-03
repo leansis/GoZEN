@@ -23,13 +23,14 @@ export default function Layout() {
   const { dbUser, logout, company, isAdmin } = useAuth();
   const location = useLocation();
 
-  const polivalenciaPaths = ['/matrix', '/training', '/statistics'];
+  const polivalenciaPaths = ['/matrix', '/process-map', '/training', '/statistics'];
   const [isPolivalenciaOpen, setIsPolivalenciaOpen] = useState(
     polivalenciaPaths.includes(location.pathname)
   );
 
   const polivalenciaItems = [
     { name: 'Matriz', path: '/matrix', icon: LayoutDashboard, roles: ['admin', 'supervisor', 'user', 'lean_promotor'] },
+    { name: 'Mapa de procesos', path: '/process-map', icon: Network, roles: ['admin', 'supervisor', 'user', 'lean_promotor'] },
     { name: 'Acciones formativas', path: '/training', icon: GraduationCap, roles: ['admin', 'supervisor', 'user', 'lean_promotor'] },
     { name: 'Estadísticas', path: '/statistics', icon: BarChart3, roles: ['admin', 'supervisor', 'user', 'lean_promotor'] },
   ];
