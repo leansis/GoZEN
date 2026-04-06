@@ -361,10 +361,12 @@ service cloud.firestore {
                       isTeamSupervisor(resource.data.get('teamId', '')) || 
                       isTeamSupervisor(request.resource.data.get('teamId', '')) ||
                       (isOwner(resource.data.userId) && 
-                       (!('currentLevel' in request.resource.data) || request.resource.data.currentLevel == resource.data.currentLevel) &&
-                       (!('completedItems' in request.resource.data) || request.resource.data.completedItems == resource.data.completedItems) &&
-                       (!('targetLevel' in request.resource.data) || request.resource.data.targetLevel == resource.data.targetLevel) &&
-                       (!('plannedLevel' in request.resource.data) || request.resource.data.plannedLevel == resource.data.plannedLevel))
+                       request.resource.data.userId == resource.data.userId &&
+                       request.resource.data.taskId == resource.data.taskId &&
+                       (!('currentLevel' in request.resource.data) || request.resource.data.currentLevel == resource.data.get('currentLevel', 0)) &&
+                       (!('completedItems' in request.resource.data) || request.resource.data.completedItems == resource.data.get('completedItems', [])) &&
+                       (!('targetLevel' in request.resource.data) || request.resource.data.targetLevel == resource.data.get('targetLevel', 0)) &&
+                       (!('plannedLevel' in request.resource.data) || request.resource.data.plannedLevel == resource.data.get('plannedLevel', 0)))
                     );
       allow delete: if isAdmin() && belongsToCompany(resource.data.get('companyId', ''));
     }
