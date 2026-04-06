@@ -1,0 +1,33 @@
+name: Deploy to Firebase Hosting on merge
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: npm ci && npm run build
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/459753165749/locations/global/workloadIdentityPools/github/providers/github
+          service_account: github-action-1198362016@project-ccb31ac7-2f69-4bf5-b7f.iam.gserviceaccount.com
+
+      - uses: google-github-actions/setup-gcloud@v3
+        with:
+          version: '>= 363.0.0'
+
+      - run: npm install -g firebase-tools
+
+      - run: firebase deploy --only hosting --project project-ccb31ac7-2f69-4bf5-b7f
