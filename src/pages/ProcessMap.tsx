@@ -3,7 +3,7 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { Activity, Process, Task, Team, UserTaskLevel } from '../types';
-import { ChevronDown, ChevronRight, Users, Target } from 'lucide-react';
+import { ChevronDown, ChevronRight, Users, Target, X } from 'lucide-react';
 import clsx from 'clsx';
 
 export default function ProcessMap() {
@@ -16,6 +16,7 @@ export default function ProcessMap() {
   const [loading, setLoading] = useState(true);
   const [selectedTeamId, setSelectedTeamId] = useState<string>('all');
   const [expandedProcesses, setExpandedProcesses] = useState<Set<string>>(new Set());
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   useEffect(() => {
     if (!dbUser || !activeCompanyId) return;
@@ -110,6 +111,29 @@ export default function ProcessMap() {
     const coverage = totalTarget > 0 ? Math.round((cappedCurrent / totalTarget) * 100) : 0;
 
     return { coverage, hasEvaluatedTasks, taskCount: processTasks.length };
+  };
+
+  const getTaskRanking = (taskId: string) => {
+    let teamsToConsider = teams;
+    if (selectedTeamId !== 'all') {
+      teamsToConsider = teams.filter(t => t.id === selectedTeamId);
+    }
+
+    const userMap = new Map<string, string>();
+    teamsToConsider.forEach(team => {
+      team.members.forEach(m => userMap.set(m.uid, m.name));
+    });
+
+    const ranking = userTaskLevels
+      .filter(l => l.taskId === taskId && userMap.has(l.userId) && l.currentLevel > 0)
+      .map(l => ({
+        userId: l.userId,
+        name: userMap.get(l.userId) || 'Usuario desconocido',
+        level: l.currentLevel
+      }))
+      .sort((a, b) => b.level - a.level);
+
+    return ranking;
   };
 
   if (loading) {
@@ -208,7 +232,11 @@ export default function ProcessMap() {
                       {isExpanded && processTasks.length > 0 && (
                         <div className="border-t border-gray-200/60 bg-white/50 p-3 flex flex-col gap-2 rounded-b-lg">
                           {processTasks.map(task => (
-                            <div key={task.id} className="text-sm text-gray-700 bg-white p-2 rounded border border-gray-100 shadow-sm flex items-start gap-2">
+                            <div 
+                              key={task.id} 
+                              className="text-sm text-gray-700 bg-white p-2 rounded border border-gray-100 shadow-sm flex items-start gap-2 cursor-pointer hover:bg-blue-50 hover:border-blue-200 transition-colors"
+                              onClick={() => setSelectedTask(task)}
+                            >
                               <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 flex-shrink-0"></div>
                               <span>{task.name}</span>
                             </div>
@@ -229,6 +257,60 @@ export default function ProcessMap() {
           );
         })}
       </div>
+
+      {/* Task Ranking Modal */}
+      {selectedTask && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[80vh] flex flex-col">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 rounded-t-xl">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-gray-800 line-clamp-1" title={selectedTask.name}>
+                  {selectedTask.name}
+                </h2>
+              </div>
+              <button 
+                onClick={() => setSelectedTask(null)}
+                className="text-gray-500 hover:text-gray-700 bg-white p-1 rounded-full hover:bg-gray-200 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto">
+              {(() => {
+                const ranking = getTaskRanking(selectedTask.id);
+                if (ranking.length === 0) {
+                  return (
+                    <div className="text-center py-8">
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <Users className="w-8 h-8 text-gray-400" />
+                      </div>
+                      <p className="text-gray-500 font-medium">No hay habilidades validadas</p>
+                      <p className="text-gray-400 text-sm mt-1">Nadie en los equipos seleccionados tiene nivel en esta tarea aún.</p>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="space-y-3">
+                    {ranking.map((user, idx) => (
+                      <div key={user.userId} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-100 shadow-sm hover:border-blue-200 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-sm bg-blue-50 text-blue-700 border border-blue-100">
+                            {idx + 1}
+                          </div>
+                          <span className="font-medium text-gray-800">{user.name}</span>
+                        </div>
+                        <div className="flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100 text-blue-700 font-semibold text-sm">
+                          <span>Nivel {user.level}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
