@@ -603,7 +603,7 @@ export default function Matrix() {
                               
                               const actualCount = selectedTeam.members.filter(m => {
                                 const data = getLevelData(m.uid, task.id);
-                                return data.currentLevel >= level;
+                                return data.currentLevel === level;
                               }).length;
                               
                               const gap = actualCount - count;

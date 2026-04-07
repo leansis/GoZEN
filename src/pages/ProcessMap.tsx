@@ -167,9 +167,9 @@ export default function ProcessMap() {
           return (
             <div key={activity.id} className="flex-shrink-0 w-80 snap-start flex flex-col">
               {/* Chevron Header */}
-              <div className="relative mb-6 drop-shadow-md">
+              <div className="relative mb-6 drop-shadow-md h-24">
                 <div 
-                  className="bg-blue-800 text-white p-4 font-bold text-center flex items-center justify-center min-h-[4rem]"
+                  className="bg-blue-800 text-white p-4 font-bold text-center flex items-center justify-center h-full"
                   style={{
                     clipPath: activities.length === 1 ? 'none' : 
                               index === 0 ? 'polygon(0% 0%, calc(100% - 16px) 0%, 100% 50%, calc(100% - 16px) 100%, 0% 100%)' :
