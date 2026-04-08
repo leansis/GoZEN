@@ -97,7 +97,8 @@ const Login = () => {
       if (err.code === 'auth/unauthorized-domain') {
         setError("Este dominio no está autorizado para iniciar sesión. Por favor, contacta al administrador para que añada este dominio en Firebase Console.");
       } else if (err.code === 'auth/popup-closed-by-user') {
-        setError("El inicio de sesión fue cancelado o bloqueado por el navegador. Por favor, inténtalo de nuevo y asegúrate de permitir las ventanas emergentes (pop-ups).");
+        // User intentionally closed the popup, no need to show a scary error
+        setError(null);
       } else if (err.code === 'auth/cancelled-popup-request') {
         setError("Ya hay una ventana de inicio de sesión abierta. Por favor, complétala o ciérrala.");
       } else {
